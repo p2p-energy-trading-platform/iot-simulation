@@ -7,7 +7,7 @@ dotenv.config();
 
 // Initialize pino logger
 const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env.LOG_LEVEL ?? 'info',
   transport: process.env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
 });
 
@@ -16,7 +16,9 @@ const activeIntervals: NodeJS.Timeout[] = [];
 
 // NOTE: The below is just a simple boiler plate. Do not take it as a system plan
 
-async function bootstrap() {
+// NOTE: Since the function has no await inside it, it cannot be async
+// However this should be an async function later on!
+function bootstrap(): void {
   logger.info('Initializing GridX IoT Microgrid Simulator Engine...');
 
   try {
@@ -38,10 +40,12 @@ async function bootstrap() {
     logger.info('GridX Simulator engine successfully deployed onto the event loop.');
 
     // Graceful Degradation Handler Context
-    const handleShutdown = (signal: string) => {
+    const handleShutdown = (signal: string): void => {
       logger.warn(`\nSystem received ${signal}. Beginning process cleanup lifecycle...`);
       
-      activeIntervals.forEach((interval) => clearInterval(interval));
+      activeIntervals.forEach((interval) => {
+        clearInterval(interval);
+      });
       logger.info('Cleared execution timers.');
 
       // TODO: Include tool/library disconnect and cleanup logic
@@ -50,8 +54,12 @@ async function bootstrap() {
       process.exit(0);
     };
 
-    process.on('SIGINT', () => handleShutdown('SIGINT'));
-    process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+    process.on('SIGINT', () => {
+      handleShutdown('SIGINT');
+    });
+    process.on('SIGTERM', () => {
+      handleShutdown('SIGTERM')
+    });
 
   } catch (criticalError) {
     logger.fatal(criticalError, 'Fatal Exception occurred during microservice initialization lifecycle');
