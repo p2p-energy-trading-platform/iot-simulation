@@ -2,14 +2,14 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import pino from 'pino';
 
+// Load environment configuration
+dotenv.config();
+
 // Initialize pino logger
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
   transport: process.env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
 });
-
-// Load environment configuration
-dotenv.config();
 
 // Track runtime task schedules to clean them up on exit
 const activeIntervals: NodeJS.Timeout[] = [];
