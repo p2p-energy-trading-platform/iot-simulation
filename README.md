@@ -24,7 +24,7 @@ npm install
 cp .env.example .env
 ```
 
-Open the freshly created `.env` file and verify that the `MQTT_HOST` and `MQTT_PORT` parameters match your active Docker configuration fields (defaults are set cleanly to localhost and 1883).
+Open the freshly created `.env` file and verify that the `MQTT_HOST` and `MQTT_PORT` parameters match our active Docker configuration fields (defaults are set cleanly to localhost and 1883).
 
 #### 3. Execute the Local Development Instance
 
