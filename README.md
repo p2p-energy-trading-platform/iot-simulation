@@ -12,7 +12,14 @@ The following requirements need to be met before you set up the project
 ### How to Set Up
 
 #### 1. Install Project Dependencies
-Navigate into the simulator service directory and run the package installer:
+
+To install the packages only, run the following:
+
+```bash
+npm ci
+```
+
+To install and also update the packages run the following:
 
 ```bash
 npm install
