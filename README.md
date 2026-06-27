@@ -42,7 +42,27 @@ To run tests:
 npm run test
 ```
 
-#### 5. To build and run the final executable
+#### 5. Run lint checks and type validation
+
+To run lint error checks, run the following:
+
+```bash
+npm run lint
+```
+
+To run typescript type checks, run the following:
+
+```bash
+npm run typecheck
+```
+
+To run both:
+
+```bash
+npm run validate
+```
+
+#### 6. To build and run the final executable
 
 This is to test the production ready version of the app. It will compile to `dist` folder.
 
