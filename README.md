@@ -12,7 +12,14 @@ The following requirements need to be met before you set up the project
 ### How to Set Up
 
 #### 1. Install Project Dependencies
-Navigate into the simulator service directory and run the package installer:
+
+To install the packages only, run the following:
+
+```bash
+npm ci
+```
+
+To install and also update the packages run the following:
 
 ```bash
 npm install
@@ -42,7 +49,27 @@ To run tests:
 npm run test
 ```
 
-#### 5. To build and run the final executable
+#### 5. Run lint checks and type validation
+
+To run lint error checks, run the following:
+
+```bash
+npm run lint
+```
+
+To run typescript type checks, run the following:
+
+```bash
+npm run typecheck
+```
+
+To run both:
+
+```bash
+npm run validate
+```
+
+#### 6. To build and run the final executable
 
 This is to test the production ready version of the app. It will compile to `dist` folder.
 
