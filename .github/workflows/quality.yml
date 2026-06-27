@@ -1,0 +1,35 @@
+name: GridX IoT Simulator Quality Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify-and-test:
+    name: Typecheck, Lint & Unit Test Execution
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository Source Code
+        uses: actions/checkout@v4
+
+      - name: Initialize Node.js v24 Runtime Context
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.5.0'
+          cache: 'npm'
+
+      - name: Clean Install Project Dependencies
+        run: npm ci
+
+      - name: Execute TypeScript Structure Diagnostics
+        run: npm run typecheck
+
+      - name: Enforce Strict Zero-Warning Code Quality Linting
+        # --max-warnings 0 forces ESLint to exit with code 1 if any warnings are detected
+        run: npx eslint . --max-warnings 0
+
+      - name: Execute Fast Infrastructure Test Suite
+        run: npm run test
