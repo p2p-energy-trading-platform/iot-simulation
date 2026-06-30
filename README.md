@@ -19,6 +19,8 @@ To install the packages only, run the following:
 npm ci
 ```
 
+This also installs the Husky Git hooks used by the project.
+
 To install and also update the packages run the following:
 
 ```bash
@@ -76,6 +78,26 @@ This is to test the production ready version of the app. It will compile to `dis
 ```bash
 npm run build
 npm run start
+```
+
+### Commit message standard
+
+Husky checks every commit message before Git creates the commit. Use this format:
+
+```text
+type(scope): short summary
+```
+
+The scope is optional. The allowed types are `feat`, `fix`, `doc`, `style`,
+`refactor`, `perf`, `test`, `chore`, and `remove`. Write the summary in
+lowercase, present tense, without a period at the end.
+
+Examples:
+
+```text
+feat(mqtt): add meter reading publisher
+fix: handle missing grid configuration
+doc(readme): clarify local setup
 ```
 
 ### Full plan
