@@ -8,7 +8,8 @@ export default defineConfig([
       'dist/**',
       'node_modules/**',
       'coverage/**',
-      'eslint.config.mjs'
+      'eslint.config.mjs',
+      'commitlint.config.js'
     ]
   },
   {
