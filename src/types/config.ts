@@ -26,3 +26,13 @@ export interface GridConfig {
 export interface SimulatorConfig {
   grids: GridConfig[];
 }
+
+export interface WeatherReading {
+  shortwave_radiation: number;
+  direct_radiation: number;
+  diffuse_radiation: number;
+  cloud_cover: number;
+  temperature_2m: number;
+  timestamp: string;
+  source: 'live' | 'fallback';
+}
