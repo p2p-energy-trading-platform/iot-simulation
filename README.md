@@ -126,9 +126,10 @@ iot-simulator/
 │   ├── domain/
 │   │   ├── Grid.ts
 │   │   ├── House.ts
+│   │   ├── HouseFactory.ts          # generates houses per grid from config ratios
 │   │   ├── SolarSimulator.ts
 │   │   ├── LoadSimulator.ts          # archetype + scale factor logic
-│   │   ├── FlexibleAssetSimulator.ts  # Holds asset details (batter, ev)
+│   │   ├── FlexibleAssetSimulator.ts  # Holds asset details (battery, ev)
 │   │   └── SmartMeter.ts            # combines everything into one reading
 │   ├── mqtt/
 │   │   ├── mqttClient.ts            # connecting, reconnecting
