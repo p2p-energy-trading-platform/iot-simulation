@@ -48,3 +48,9 @@ export interface HeartbeatPayload {
   rated_solar_kw: number;
   flexible_assets: FlexibleAssetCapability[];
 }
+
+export interface ActuationCommandPayload {
+  house_id: string;
+  asset_id: string;
+  power_kw: number;
+}

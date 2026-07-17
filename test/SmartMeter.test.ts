@@ -6,7 +6,7 @@ import type { WeatherReading } from '../src/types/config.js';
 
 function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   return {
-    houseId: 'house0042',
+    houseId: 'grid01-house0042',
     gridId: 'grid01',
     deviceClass: 'residential_prosumer',
     loadArchetype: 'family_both_work',
@@ -51,8 +51,8 @@ function makeWeather(overrides: Partial<WeatherReading> = {}): WeatherReading {
 }
 
 describe('buildMeterId', () => {
-  it('follows the meter-{grid_id}-{house_id} format', () => {
-    expect(buildMeterId('grid01', 'house0042')).toBe('meter-grid01-house0042');
+  it('follows the meter-{house_id} format', () => {
+    expect(buildMeterId('grid01-house0042')).toBe('meter-grid01-house0042');
   });
 });
 
@@ -70,14 +70,14 @@ describe('buildMeterReading', () => {
   });
 
   it('correctly sets identifying fields', () => {
-    const house = makeHouse({ houseId: 'house0042', gridId: 'grid01' });
+    const house = makeHouse({ houseId: 'grid01-house0042', gridId: 'grid01' });
     const tick = makeTick();
     const weather = makeWeather();
 
     const reading = buildMeterReading(house, tick, weather, 1);
 
     expect(reading.meter_id).toBe('meter-grid01-house0042');
-    expect(reading.house_id).toBe('house0042');
+    expect(reading.house_id).toBe('grid01-house0042');
     expect(reading.grid_id).toBe('grid01');
     expect(reading.device_class).toBe('residential_prosumer');
     expect(reading.schema_version).toBe('1.0');
@@ -134,7 +134,7 @@ describe('buildHeartbeat', () => {
 
     expect(heartbeat.schema_version).toBe('1.0');
     expect(heartbeat.grid_id).toBe('grid01');
-    expect(heartbeat.house_id).toBe('house0042');
+    expect(heartbeat.house_id).toBe('grid01-house0042');
     expect(heartbeat.meter_id).toBe('meter-grid01-house0042');
     expect(heartbeat.status).toBe('online');
     expect(heartbeat.device_class).toBe('residential_prosumer');

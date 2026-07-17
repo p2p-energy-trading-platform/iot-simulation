@@ -4,12 +4,32 @@ export interface MqttConnectionOptions {
   host: string;
   port: number;
   clientId?: string;
+  maxReconnectPeriodMs?: number;
 }
+
+export interface MqttLogger {
+  info: (msg: string) => void;
+  warn: (msg: string) => void;
+  error: (msg: string) => void;
+}
+
+const defaultLogger: MqttLogger = {
+  /* eslint-disable no-console */
+  info: (msg) => { console.log(msg); },
+  warn: (msg) => { console.warn(msg); },
+  error: (msg) => { console.error(msg); },
+  /* eslint-enable no-console */
+};
 
 export class SimulatorMqttClient {
   private client: MqttJsClient | undefined;
+  private droppedMessageCount = 0;
+  private reconnectCount = 0;
 
-  constructor(private readonly options: MqttConnectionOptions) {}
+  constructor(
+    private readonly options: MqttConnectionOptions,
+    private readonly logger: MqttLogger = defaultLogger
+  ) {}
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -17,7 +37,7 @@ export class SimulatorMqttClient {
 
       const connectOptions: IClientOptions = {
         clientId: this.options.clientId,
-        reconnectPeriod: 2000, // retry every 2s on disconnect
+        reconnectPeriod: 2000, // initial retry interval; mqtt.js handles the retry loop
       };
 
       const client = mqtt.connect(url, connectOptions);
@@ -30,12 +50,39 @@ export class SimulatorMqttClient {
       client.once('error', (err: Error) => {
         reject(err);
       });
+
+      client.on('reconnect', () => {
+        this.reconnectCount += 1;
+        this.logger.warn(
+          `MQTT client attempting reconnection (attempt #${String(this.reconnectCount)})`
+        );
+      });
+
+      client.on('connect', () => {
+        if (this.reconnectCount > 0) {
+          this.logger.info(
+            `MQTT client reconnected successfully after ${String(this.reconnectCount)} attempt(s)`
+          );
+        }
+      });
+
+      client.on('offline', () => {
+        this.logger.warn('MQTT client is offline - telemetry publishing is paused until reconnected');
+      });
+
+      client.on('error', (err: Error) => {
+        this.logger.error(`MQTT client error: ${err.message}`);
+      });
     });
   }
 
   publish(topic: string, payload: string, qos: 0 | 1 | 2 = 1): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (!this.client) {
+      if (!this.client?.connected) {
+        this.droppedMessageCount += 1;
+        this.logger.warn(
+          `Dropped message while disconnected (topic: ${topic}, total dropped: ${String(this.droppedMessageCount)})`
+        );
         reject(new Error('Cannot publish: MQTT client is not connected'));
         return;
       }
@@ -46,6 +93,27 @@ export class SimulatorMqttClient {
           return;
         }
         resolve();
+      });
+    });
+  }
+
+  subscribe(topic: string, onMessage: (topic: string, payload: string) => void): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.client) {
+        reject(new Error('Cannot subscribe: MQTT client is not connected'));
+        return;
+      }
+
+      this.client.subscribe(topic, (err: Error | null) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      });
+
+      this.client.on('message', (receivedTopic: string, payload: Buffer) => {
+        onMessage(receivedTopic, payload.toString());
       });
     });
   }
@@ -72,5 +140,13 @@ export class SimulatorMqttClient {
 
   isConnected(): boolean {
     return this.client?.connected ?? false;
+  }
+
+  getDroppedMessageCount(): number {
+    return this.droppedMessageCount;
+  }
+
+  getReconnectCount(): number {
+    return this.reconnectCount;
   }
 }
