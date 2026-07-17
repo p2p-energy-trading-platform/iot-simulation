@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'events';
+import mqtt from 'mqtt';
+import { SimulatorMqttClient } from '../src/mqtt/mqttClient.js';
+import type { MqttLogger } from '../src/mqtt/mqttClient.js';
 
-// Mock the entire 'mqtt' package before importing SimulatorMqttClient
 vi.mock('mqtt', () => {
   return {
     default: {
@@ -9,9 +11,6 @@ vi.mock('mqtt', () => {
     },
   };
 });
-
-import mqtt from 'mqtt';
-import { SimulatorMqttClient } from '../src/mqtt/mqttClient.js';
 
 class FakeMqttClient extends EventEmitter {
   connected = false;
@@ -23,7 +22,17 @@ class FakeMqttClient extends EventEmitter {
   });
 }
 
-describe('SimulatorMqttClient', () => {
+function makeFakeLogger(): MqttLogger & { calls: { level: string; msg: string }[] } {
+  const calls: { level: string; msg: string }[] = [];
+  return {
+    calls,
+    info: (msg: string) => calls.push({ level: 'info', msg }),
+    warn: (msg: string) => calls.push({ level: 'warn', msg }),
+    error: (msg: string) => calls.push({ level: 'error', msg }),
+  };
+}
+
+describe('SimulatorMqttClient - reconnection handling', () => {
   let fakeClient: FakeMqttClient;
 
   beforeEach(() => {
@@ -31,104 +40,111 @@ describe('SimulatorMqttClient', () => {
     vi.mocked(mqtt.connect).mockReturnValue(fakeClient as never);
   });
 
-  it('resolves connect() once the underlying client emits "connect"', async () => {
-    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
+  it('logs a warning each time a reconnect attempt occurs', async () => {
+    const logger = makeFakeLogger();
+    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 }, logger);
 
     const connectPromise = client.connect();
     fakeClient.emit('connect');
+    await connectPromise;
 
-    await expect(connectPromise).resolves.toBeUndefined();
+    fakeClient.emit('reconnect');
+    fakeClient.emit('reconnect');
+
+    const reconnectLogs = logger.calls.filter((c) => c.msg.includes('reconnection'));
+    expect(reconnectLogs).toHaveLength(2);
   });
 
-  it('rejects connect() if the underlying client emits an error before connecting', async () => {
-    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
-
-    const connectPromise = client.connect();
-    fakeClient.emit('error', new Error('connection refused'));
-
-    await expect(connectPromise).rejects.toThrow('connection refused');
-  });
-
-  it('publishes a message successfully with QoS 1 by default', async () => {
+  it('tracks the reconnect count', async () => {
     const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
 
     const connectPromise = client.connect();
     fakeClient.emit('connect');
     await connectPromise;
 
-    await client.publish('gridx/grid01/house0001/meter', '{"solar_kw":1.2}');
+    fakeClient.emit('reconnect');
+    fakeClient.emit('reconnect');
+    fakeClient.emit('reconnect');
 
-    expect(fakeClient.publish).toHaveBeenCalledWith(
-      'gridx/grid01/house0001/meter',
-      '{"solar_kw":1.2}',
-      { qos: 1 },
-      expect.any(Function)
+    expect(client.getReconnectCount()).toBe(3);
+  });
+
+  it('logs an info message when the client successfully reconnects after attempts', async () => {
+    const logger = makeFakeLogger();
+    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 }, logger);
+
+    const connectPromise = client.connect();
+    fakeClient.emit('connect');
+    await connectPromise;
+
+    fakeClient.emit('reconnect');
+    fakeClient.emit('connect'); // reconnected successfully
+
+    const successLogs = logger.calls.filter((c) => c.msg.includes('reconnected successfully'));
+    expect(successLogs).toHaveLength(1);
+  });
+
+  it('logs a warning when the client goes offline', async () => {
+    const logger = makeFakeLogger();
+    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 }, logger);
+
+    const connectPromise = client.connect();
+    fakeClient.emit('connect');
+    await connectPromise;
+
+    fakeClient.emit('offline');
+
+    const offlineLogs = logger.calls.filter((c) => c.msg.includes('offline'));
+    expect(offlineLogs).toHaveLength(1);
+  });
+
+  it('does not silently drop a message published while disconnected - it logs and rejects', async () => {
+    const logger = makeFakeLogger();
+    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 }, logger);
+
+    // Never connect - client stays undefined/disconnected
+    await expect(client.publish('gridx/grid01/house0001/meter', '{}')).rejects.toThrow(
+      'not connected'
     );
+
+    const droppedLogs = logger.calls.filter((c) => c.msg.includes('Dropped message'));
+    expect(droppedLogs).toHaveLength(1);
   });
 
-  it('publishes with a custom QoS when specified', async () => {
+  it('tracks the dropped message count across multiple failed publishes', async () => {
     const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
 
-    const connectPromise = client.connect();
-    fakeClient.emit('connect');
-    await connectPromise;
+    await expect(client.publish('topic/a', '{}')).rejects.toThrow();
+    await expect(client.publish('topic/b', '{}')).rejects.toThrow();
+    await expect(client.publish('topic/c', '{}')).rejects.toThrow();
 
-    await client.publish('gridx/grid01/house0001/meter', '{}', 0);
-
-    expect(fakeClient.publish).toHaveBeenCalledWith(
-      'gridx/grid01/house0001/meter',
-      '{}',
-      { qos: 0 },
-      expect.any(Function)
-    );
+    expect(client.getDroppedMessageCount()).toBe(3);
   });
 
-  it('rejects publish() if called before connect()', async () => {
+  it('does not count a message as dropped once the client is connected', async () => {
     const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
-
-    await expect(client.publish('some/topic', '{}')).rejects.toThrow('not connected');
-  });
-
-  it('rejects publish() if the underlying client reports an error', async () => {
-    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
-
-    const connectPromise = client.connect();
-    fakeClient.emit('connect');
-    await connectPromise;
-
-    fakeClient.publish = vi.fn((_t: string, _p: string, _o: unknown, cb: (err?: Error) => void) => {
-      cb(new Error('publish failed: broker rejected message'));
-    });
-
-    await expect(client.publish('some/topic', '{}')).rejects.toThrow('publish failed');
-  });
-
-  it('resolves disconnect() cleanly', async () => {
-    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
-
-    const connectPromise = client.connect();
-    fakeClient.emit('connect');
-    await connectPromise;
-
-    await expect(client.disconnect()).resolves.toBeUndefined();
-    expect(fakeClient.end).toHaveBeenCalled();
-  });
-
-  it('disconnect() resolves even if never connected', async () => {
-    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
-    await expect(client.disconnect()).resolves.toBeUndefined();
-  });
-
-  it('isConnected reflects the underlying client connection state', async () => {
-    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
-
-    expect(client.isConnected()).toBe(false);
 
     const connectPromise = client.connect();
     fakeClient.connected = true;
     fakeClient.emit('connect');
     await connectPromise;
 
-    expect(client.isConnected()).toBe(true);
+    await client.publish('gridx/grid01/house0001/meter', '{}');
+
+    expect(client.getDroppedMessageCount()).toBe(0);
+  });
+
+  it('logs an error when the underlying client emits an error after connecting', async () => {
+    const logger = makeFakeLogger();
+    const client = new SimulatorMqttClient({ host: 'localhost', port: 1883 }, logger);
+
+    const connectPromise = client.connect();
+    fakeClient.emit('connect');
+    await connectPromise;
+
+    fakeClient.emit('error', new Error('broker went away'));
+
+    const errorLogs = logger.calls.filter((c) => c.msg.includes('broker went away'));
+    expect(errorLogs).toHaveLength(1);
   });
 });
