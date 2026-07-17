@@ -52,9 +52,10 @@ function buildBatteryAsset(houseId: string, random: RandomSource): FlexibleAsset
   };
 }
 
-function buildHouseId(index: number): string {
+
+function buildHouseId(gridId: string, index: number): string {
   const padded = String(index).padStart(4, '0');
-  return `house${padded}`;
+  return `${gridId}-house${padded}`;
 }
 
 interface HouseSpec {
@@ -97,7 +98,7 @@ function buildHouseFromSpec(
   config: GridConfig,
   random: RandomSource
 ): HouseState {
-  const houseId = buildHouseId(spec.index);
+  const houseId = buildHouseId(gridId, spec.index);
   const isCommercial = spec.deviceClass === 'commercial';
   const isGenerating = spec.deviceClass !== 'consumer';
 

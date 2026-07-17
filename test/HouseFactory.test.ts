@@ -77,7 +77,7 @@ describe('generateHouses', () => {
     const houses = generateHouses(config, makeSeededRandom());
 
     for (const house of houses) {
-      expect(house.houseId).toMatch(/^house\d{4}$/);
+      expect(house.houseId).toMatch(/^grid01-house\d{4}$/);
     }
   });
 

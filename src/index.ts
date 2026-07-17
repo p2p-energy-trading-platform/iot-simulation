@@ -1,6 +1,13 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import pino from 'pino';
+import { loadConfig } from './config/loadConfig.js';
+import { SimState } from './store/simState.js';
+import { generateHouses } from './domain/HouseFactory.js';
+import { Grid } from './domain/Grid.js';
+import { SimulatorMqttClient } from './mqtt/mqttClient.js';
+import { TickLoop } from './scheduler/tickLoop.js';
+import type { MqttLogger } from './mqtt/mqttClient.js';
 
 // Load environment configuration
 dotenv.config();
@@ -11,54 +18,79 @@ const logger = pino({
   transport: process.env.NODE_ENV === 'development' ? { target: 'pino-pretty' } : undefined,
 });
 
+// Adapt pino to the MqttLogger interface used by mqttClient.ts and tickLoop.ts
+const mqttLogger: MqttLogger = {
+  info: (msg: string) => { logger.info(msg); },
+  warn: (msg: string) => { logger.warn(msg); },
+  error: (msg: string) => { logger.error(msg); },
+};
+
 // Track runtime task schedules to clean them up on exit
-const activeIntervals: NodeJS.Timeout[] = [];
+let tickLoop: TickLoop | undefined;
+let mqttClient: SimulatorMqttClient | undefined;
 
-// NOTE: The below is just a simple boiler plate. Do not take it as a system plan
-
-// NOTE: Since the function has no await inside it, it cannot be async
-// However this should be an async function later on!
-function bootstrap(): void {
+async function bootstrap(): Promise<void> {
   logger.info('Initializing GridX IoT Microgrid Simulator Engine...');
 
   try {
     // Load Topology Configuration Profiles
     const configPath = path.join(import.meta.dirname, '../config/grids.yaml');
     logger.debug({ configPath }, 'Loading simulator engine profiles...');
-    // TODO: const topology = loadConfig(configPath);
+    const topology = loadConfig(configPath);
 
-    // TODO: Instantiate State Storage Manifest
+    // Instantiate State Storage Manifest
+    const simState = new SimState();
 
-    // TODO: Connect to Shared Core Infrastructure Network Transport Broker
+    // Generate houses for every grid and populate the state store
+    const grids = topology.grids.map((gridConfig) => {
+      const houses = generateHouses(gridConfig);
+      houses.forEach((house) => { simState.addHouse(house); });
+      return new Grid(gridConfig, simState);
+    });
 
-    // TODO: Fire Background Weather Synchronization (Non-Blocking)
+    logger.info(
+      { gridCount: grids.length, houseCount: simState.houseCount },
+      'Generated grids and houses from config'
+    );
 
-    // TODO: Fire Smart meter device System Heartbeats (Non-Blocking)
+    // Connect to Shared Core Infrastructure Network Transport Broker
+    const host = process.env.MQTT_HOST ?? 'localhost';
+    const port = Number(process.env.MQTT_PORT ?? '1883');
 
-    // TODO: Fire Main Telemetry Simulation Ticks (Non-Blocking)
+    mqttClient = new SimulatorMqttClient({ host, port }, mqttLogger);
+    await mqttClient.connect();
+    logger.info({ host, port }, 'Connected to MQTT broker');
+
+    // Fire Smart meter device System Heartbeats and Main Telemetry Simulation Ticks (Non-Blocking)
+    tickLoop = new TickLoop({
+      grids,
+      mqttClient,
+      tickIntervalMs: Number(process.env.TICK_INTERVAL_MS ?? '5000'),
+      heartbeatIntervalMs: Number(process.env.HEARTBEAT_INTERVAL_MS ?? '60000'),
+      logger: mqttLogger,
+    });
+    tickLoop.start();
 
     logger.info('GridX Simulator engine successfully deployed onto the event loop.');
 
     // Graceful Degradation Handler Context
     const handleShutdown = (signal: string): void => {
       logger.warn(`\nSystem received ${signal}. Beginning process cleanup lifecycle...`);
-      
-      activeIntervals.forEach((interval) => {
-        clearInterval(interval);
-      });
+
+      tickLoop?.stop();
       logger.info('Cleared execution timers.');
 
-      // TODO: Include tool/library disconnect and cleanup logic
-
-      logger.info('GridX Simulator application cleanly terminated.');
-      process.exit(0);
+      void mqttClient?.disconnect().then(() => {
+        logger.info('GridX Simulator application cleanly terminated.');
+        process.exit(0);
+      });
     };
 
     process.on('SIGINT', () => {
       handleShutdown('SIGINT');
     });
     process.on('SIGTERM', () => {
-      handleShutdown('SIGTERM')
+      handleShutdown('SIGTERM');
     });
 
   } catch (criticalError) {
@@ -67,4 +99,4 @@ function bootstrap(): void {
   }
 }
 
-bootstrap();
+void bootstrap();
