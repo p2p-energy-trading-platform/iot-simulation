@@ -5,8 +5,8 @@ import type { MeterReadingPayload, HeartbeatPayload, StorageAssetReading } from 
 
 const SCHEMA_VERSION = '1.0';
 
-export function buildMeterId(gridId: string, houseId: string): string {
-  return `meter-${gridId}-${houseId}`;
+export function buildMeterId(houseId: string): string {
+  return `meter-${houseId}`;
 }
 
 export function buildMeterReading(
@@ -26,7 +26,7 @@ export function buildMeterReading(
 
   return {
     schema_version: SCHEMA_VERSION,
-    meter_id: buildMeterId(house.gridId, house.houseId),
+    meter_id: buildMeterId(house.houseId),
     house_id: house.houseId,
     grid_id: house.gridId,
     device_class: house.deviceClass,
@@ -50,7 +50,7 @@ export function buildHeartbeat(house: HouseState): HeartbeatPayload {
     schema_version: SCHEMA_VERSION,
     grid_id: house.gridId,
     house_id: house.houseId,
-    meter_id: buildMeterId(house.gridId, house.houseId),
+    meter_id: buildMeterId(house.houseId),
     status: 'online',
     device_class: house.deviceClass,
     rated_solar_kw: house.ratedSolarKw,
