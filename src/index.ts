@@ -8,6 +8,8 @@ import { Grid } from './domain/Grid.js';
 import { SimulatorMqttClient } from './mqtt/mqttClient.js';
 import { TickLoop } from './scheduler/tickLoop.js';
 import type { MqttLogger } from './mqtt/mqttClient.js';
+import { ACTUATION_COMMAND_TOPIC } from './mqtt/topics.js';
+import { handleActuationMessage } from './mqtt/actuationHandler.js';
 
 // Load environment configuration
 dotenv.config();
@@ -60,6 +62,11 @@ async function bootstrap(): Promise<void> {
     mqttClient = new SimulatorMqttClient({ host, port }, mqttLogger);
     await mqttClient.connect();
     logger.info({ host, port }, 'Connected to MQTT broker');
+
+    await mqttClient.subscribe(ACTUATION_COMMAND_TOPIC, (_topic, payload) => {
+      handleActuationMessage(payload, simState, mqttLogger);
+    });
+    logger.info({ topic: ACTUATION_COMMAND_TOPIC }, 'Subscribed to actuation command topic');
 
     // Fire Smart meter device System Heartbeats and Main Telemetry Simulation Ticks (Non-Blocking)
     tickLoop = new TickLoop({

@@ -97,6 +97,27 @@ export class SimulatorMqttClient {
     });
   }
 
+  subscribe(topic: string, onMessage: (topic: string, payload: string) => void): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.client) {
+        reject(new Error('Cannot subscribe: MQTT client is not connected'));
+        return;
+      }
+
+      this.client.subscribe(topic, (err: Error | null) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      });
+
+      this.client.on('message', (receivedTopic: string, payload: Buffer) => {
+        onMessage(receivedTopic, payload.toString());
+      });
+    });
+  }
+
   onReconnect(handler: () => void): void {
     this.client?.on('reconnect', handler);
   }

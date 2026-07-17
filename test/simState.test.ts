@@ -174,4 +174,81 @@ describe('SimState', () => {
   });
 
 
+  describe('applyActuationCommand', () => {
+  it('updates the target asset SoC when charging', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+    state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+    const house = state.getHouse('house0001');
+    expect(house?.flexibleAssets[0]?.socPct).toBeGreaterThan(50);
+  });
+
+  it('updates the target asset SoC when discharging', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+    state.applyActuationCommand('house0001', 'bat_001', -1.0);
+
+    const house = state.getHouse('house0001');
+    expect(house?.flexibleAssets[0]?.socPct).toBeLessThan(50);
+  });
+
+  it('ignores a command for an unknown house without throwing', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+    expect(() => {
+      state.applyActuationCommand('nonexistent_house', 'bat_001', 1.0);
+    }).not.toThrow();
+  });
+
+  it('logs a warning for a command targeting an unknown house', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+    const warnings: string[] = [];
+    state.applyActuationCommand('nonexistent_house', 'bat_001', 1.0, {
+      warn: (msg) => warnings.push(msg),
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('unknown house');
+  });
+
+  it('ignores a command for an unknown asset without throwing', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+    expect(() => {
+      state.applyActuationCommand('house0001', 'nonexistent_asset', 1.0);
+    }).not.toThrow();
+  });
+
+  it('logs a warning for a command targeting an unknown asset', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+    const warnings: string[] = [];
+    state.applyActuationCommand('house0001', 'nonexistent_asset', 1.0, {
+      warn: (msg) => warnings.push(msg),
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('unknown asset');
+  });
+
+  it('does not affect other assets or houses when applying a command', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+    state.addHouse(makeHouse({ houseId: 'house0002' }));
+
+    state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+    const house2 = state.getHouse('house0002');
+    expect(house2?.flexibleAssets[0]?.socPct).toBe(50); // unchanged
+  });
+});
+
 });
