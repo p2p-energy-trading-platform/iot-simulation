@@ -35,5 +35,11 @@ export default defineConfig([
       '@typescript-eslint/explicit-function-return-type': 'error',
       'no-console': 'warn',
     },
+  },
+  {
+    files: ['scripts/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
   }
 ]);
