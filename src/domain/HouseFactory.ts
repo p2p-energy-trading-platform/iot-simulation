@@ -24,7 +24,29 @@ export interface RandomSource {
   next(): number; // returns [0, 1)
 }
 
-const defaultRandom: RandomSource = { next: () => Math.random() };
+/**
+ * Deterministic pseudo-random source (mulberry32) seeded from a string.
+ * Seeding per house keeps every house's attributes (panel size, battery,
+ * load profile) the same across simulator restarts, so a house keeps not only
+ * its ID but also what it is (plan section 4.7).
+ */
+export function seededRandom(seed: string): RandomSource {
+  // FNV-1a hash of the seed string -> 32-bit state.
+  let state = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    state ^= seed.charCodeAt(i);
+    state = Math.imul(state, 0x01000193) >>> 0;
+  }
+  return {
+    next(): number {
+      state = (state + 0x6d2b79f5) >>> 0;
+      let t = state;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    },
+  };
+}
 
 function randomInRange(range: [number, number], random: RandomSource): number {
   const [min, max] = range;
@@ -138,11 +160,22 @@ function buildHouseFromSpec(
  * Generates the full set of houses for a grid based on its config ratios.
  * House IDs are deterministic based on grid_id and creation order, so calling
  * this again with the same config produces the same house IDs (plan section 4.7).
+ *
+ * Without an explicit random source each house draws from its own generator
+ * seeded with its house ID, so its attributes are also identical on every
+ * restart and do not shift when other houses are added to the grid.
  */
 export function generateHouses(
   config: GridConfig,
-  random: RandomSource = defaultRandom
+  random?: RandomSource
 ): HouseState[] {
   const specs = buildHouseSpecs(config);
-  return specs.map((spec) => buildHouseFromSpec(config.grid_id, spec, config, random));
+  return specs.map((spec) =>
+    buildHouseFromSpec(
+      config.grid_id,
+      spec,
+      config,
+      random ?? seededRandom(buildHouseId(config.grid_id, spec.index))
+    )
+  );
 }
