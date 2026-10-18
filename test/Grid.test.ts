@@ -180,4 +180,64 @@ describe('Grid', () => {
 
     expect(results).toHaveLength(0);
   });
+
+  it('reuses one live weather reading for the whole sync interval', async () => {
+    let now = 0;
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001', gridId: 'grid01' }));
+    const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state, {
+      weatherSyncIntervalMs: 60_000,
+      now: (): number => now,
+    });
+
+    await grid.runTick(12);
+    now = 59_000;
+    await grid.runTick(12);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    now = 60_000;
+    await grid.runTick(12);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries the live API within a minute while using the fallback', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+    let now = 0;
+    const state = new SimState();
+    const grid = new Grid(makeGridConfig(), state, { weatherSyncIntervalMs: 15 * 60_000, now: (): number => now });
+
+    expect((await grid.currentWeather()).source).toBe('fallback');
+    now = 30_000;
+    await grid.currentWeather();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    now = 61_000;
+    await grid.currentWeather();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('runTick applies an actuation setpoint to power, SoC and net', async () => {
+    const state = new SimState();
+    state.addHouse(
+      makeHouse({
+        houseId: 'house0001',
+        gridId: 'grid01',
+        flexibleAssets: [
+          { assetId: 'bat_001', assetType: 'bess', capacityKwh: 10, maxChargeKw: 3.5, maxDischargeKw: 3.5, socPct: 50 },
+        ],
+      })
+    );
+    const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
+
+    const [idle] = await grid.runTick(12);
+    const idlePower = idle.house.flexibleAssets[0].powerKw;
+    state.applyActuationCommand('house0001', 'bat_001', 2);
+    const [charging] = await grid.runTick(12);
+
+    expect(idlePower).toBe(0);
+    expect(charging.house.flexibleAssets[0].powerKw).toBe(2);
+    expect(charging.house.flexibleAssets[0].socPct).toBeGreaterThan(50);
+    // Charging is extra demand: net = solar - consumption - 2.
+    const t = charging.tick;
+    expect(t.netKw).toBeCloseTo(t.solarKw - t.consumptionKw - 2, 9);
+  });
 });

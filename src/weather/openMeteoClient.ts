@@ -1,6 +1,6 @@
 import type { GridLocation, WeatherReading } from '../types/config.js';
 
-const OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+const DEFAULT_OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
 
 interface OpenMeteoResponse {
   current: {
@@ -43,7 +43,8 @@ export async function fetchLiveWeather(location: GridLocation): Promise<WeatherR
     current: 'shortwave_radiation,direct_radiation,diffuse_radiation,cloud_cover,temperature_2m',
   });
 
-  const url = `${OPEN_METEO_BASE_URL}?${params.toString()}`;
+  const baseUrl = process.env.OPEN_METEO_BASE_URL ?? DEFAULT_OPEN_METEO_BASE_URL;
+  const url = `${baseUrl}?${params.toString()}`;
 
   let response: Response;
 
