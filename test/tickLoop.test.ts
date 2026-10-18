@@ -247,4 +247,45 @@ describe('TickLoop', () => {
     expect(firstPayload.seq).toBe(1);
     expect(secondPayload.seq).toBe(2);
   });
+
+  it('publishes heartbeats immediately on start, not only after the first interval', async () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001', gridId: 'grid01' }));
+    const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
+    const mqttClient = makeFakeMqttClient();
+    const tickLoop = new TickLoop({ grids: [grid], mqttClient, heartbeatIntervalMs: 60_000, tickIntervalMs: 5_000 });
+
+    tickLoop.start();
+    await vi.advanceTimersByTimeAsync(0);
+    tickLoop.stop();
+
+    const heartbeats = mqttClient.publishCalls.filter((c) => c.topic.endsWith('/heartbeat'));
+    expect(heartbeats).toHaveLength(1);
+  });
+
+  it('reports the applied storage power in the meter reading', async () => {
+    const state = new SimState();
+    state.addHouse(
+      makeHouse({
+        houseId: 'house0001',
+        gridId: 'grid01',
+        flexibleAssets: [
+          { assetId: 'bat_001', assetType: 'bess', capacityKwh: 10, maxChargeKw: 3.5, maxDischargeKw: 3.5, socPct: 50 },
+        ],
+      })
+    );
+    state.applyActuationCommand('house0001', 'bat_001', -1.5);
+    const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
+    const mqttClient = makeFakeMqttClient();
+    const tickLoop = new TickLoop({ grids: [grid], mqttClient });
+
+    await tickLoop.runAllGridTicks();
+
+    const reading = JSON.parse(mqttClient.publishCalls[0]?.payload ?? '{}') as {
+      readings: { solar_kw: number; consumption_kw: number; net_kw: number; storage_assets: { power_kw: number; soc_pct: number }[] };
+    };
+    expect(reading.readings.storage_assets[0]?.power_kw).toBe(-1.5);
+    expect(reading.readings.storage_assets[0]?.soc_pct).toBeLessThan(50);
+    expect(reading.readings.net_kw).toBeCloseTo(reading.readings.solar_kw - reading.readings.consumption_kw + 1.5, 9);
+  });
 });

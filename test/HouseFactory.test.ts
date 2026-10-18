@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateHouses } from '../src/domain/HouseFactory.js';
+import { generateHouses, seededRandom } from '../src/domain/HouseFactory.js';
 import type { GridConfig } from '../src/types/config.js';
 import type { RandomSource } from '../src/domain/HouseFactory.js';
 
@@ -200,5 +200,28 @@ describe('generateHouses', () => {
     const houses = generateHouses(config);
 
     expect(houses).toHaveLength(10);
+  });
+
+  it('produces identical houses on every run without an explicit random source', () => {
+    const config = makeConfig({ houses: 20, prosumer_ratio: 0.5, battery_ratio: 0.5 });
+    expect(generateHouses(config)).toEqual(generateHouses(config));
+  });
+
+  it('keeps existing houses unchanged when more houses are added to the grid', () => {
+    const small = generateHouses(makeConfig({ houses: 10, prosumer_ratio: 1, battery_ratio: 0.5, commercial_count: 0 }));
+    const large = generateHouses(makeConfig({ houses: 20, prosumer_ratio: 1, battery_ratio: 0.5, commercial_count: 0 }));
+    expect(large.slice(0, 10)).toEqual(small);
+  });
+
+  it('seededRandom is deterministic per seed and stays in [0, 1)', () => {
+    const a = seededRandom('grid01-house0001');
+    const b = seededRandom('grid01-house0001');
+    const c = seededRandom('grid01-house0002');
+    const seqA = Array.from({ length: 50 }, () => a.next());
+    const seqB = Array.from({ length: 50 }, () => b.next());
+    const seqC = Array.from({ length: 50 }, () => c.next());
+    expect(seqA).toEqual(seqB);
+    expect(seqA).not.toEqual(seqC);
+    expect(seqA.every((x) => x >= 0 && x < 1)).toBe(true);
   });
 });

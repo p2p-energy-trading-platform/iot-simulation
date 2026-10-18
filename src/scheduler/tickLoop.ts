@@ -43,6 +43,10 @@ export class TickLoop {
   }
 
   start(): void {
+    // Announce every house straight away instead of after one full heartbeat
+    // interval, so the backend does not see the fleet as offline at startup.
+    void this.runAllGridHeartbeats();
+
     this.tickTimer = setInterval(() => {
       void this.runAllGridTicks();
     }, this.tickIntervalMs);
@@ -87,7 +91,7 @@ export class TickLoop {
   }
 
   private async runSingleGridTick(grid: Grid, hourOfDay: number): Promise<void> {
-    const tickResults = await grid.runTick(hourOfDay);
+    const tickResults = await grid.runTick(hourOfDay, this.tickIntervalMs / 3_600_000);
 
     const publishResults = await Promise.allSettled(
       tickResults.map(({ house, weather, tick }) => {

@@ -35,6 +35,27 @@ cp .env.example .env
 
 Open the freshly created `.env` file and verify that the `MQTT_HOST` and `MQTT_PORT` parameters match our active Docker configuration fields (defaults are set cleanly to localhost and 1883).
 
+The timing settings are read at startup. A value that is not a positive number stops the simulator with an error instead of being ignored.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `TICK_INTERVAL_MS` | `5000` | How often every meter publishes a reading |
+| `HEARTBEAT_INTERVAL_MS` | `60000` | How often every meter publishes a heartbeat. One heartbeat per house is also sent immediately at startup |
+| `WEATHER_SYNC_INTERVAL_MS` | `900000` | How long one Open-Meteo reading is reused per grid. While Open-Meteo is unreachable, the clear-sky fallback is used and the API is retried after about a minute |
+| `OPEN_METEO_BASE_URL` | Open-Meteo forecast URL | Weather API endpoint |
+
+House IDs **and** house attributes (panel size, battery, load profile) are derived deterministically from the house ID, so a restart produces exactly the same houses.
+
+#### Battery actuation
+
+Publish a setpoint to `gridx/actuation`:
+
+```json
+{"house_id": "grid01-house0001", "asset_id": "bat-grid01-house0001", "power_kw": 2.0}
+```
+
+`power_kw` is positive to charge and negative to discharge. The setpoint stays in force on every tick until another command replaces it (send `0` to stop). It is clamped to the asset's charge and discharge limits, and charging or discharging stops on its own at 100 % or 0 %. Each reading reports the applied `power_kw` and the new `soc_pct`, and `net_kw = solar_kw - consumption_kw - sum(power_kw)`. Setpoints live in memory and reset when the simulator restarts.
+
 #### 3. Execute the Local Development Instance
 
 To spin up the service in hot-reload development mode, run the following

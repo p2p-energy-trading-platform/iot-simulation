@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyChargeCommand } from '../src/domain/FlexibleAssetSimulator.js';
+import { applyChargeCommand, stepAsset } from '../src/domain/FlexibleAssetSimulator.js';
 import type { FlexibleAsset } from '../src/domain/FlexibleAssetSimulator.js';
 
 function makeAsset(overrides: Partial<FlexibleAsset> = {}): FlexibleAsset {
@@ -123,5 +123,28 @@ describe('applyChargeCommand', () => {
     }
 
     expect(asset.socPct).toBe(0);
+  });
+
+  it('records the applied power, clamped to the asset limits', () => {
+    expect(applyChargeCommand(makeAsset(), 1.0).powerKw).toBe(1.0);
+    expect(applyChargeCommand(makeAsset(), 999).powerKw).toBe(3.5);
+    expect(applyChargeCommand(makeAsset(), -999).powerKw).toBe(-3.5);
+  });
+
+  it('stops charging by itself once the battery is full', () => {
+    let asset = makeAsset({ socPct: 99.99, targetPowerKw: 3.5 });
+    asset = stepAsset(asset);
+    expect(asset.socPct).toBeCloseTo(100, 9);
+    asset = stepAsset(asset);
+    expect(asset.powerKw).toBe(0);
+    expect(asset.socPct).toBeCloseTo(100, 9);
+  });
+
+  it('integrates SoC over the given tick length', () => {
+    // 3 kW into a 10 kWh battery: 1 s adds 0.00833 %, 10 s adds ten times that.
+    const oneSecond = applyChargeCommand(makeAsset(), 3, 1 / 3600);
+    const tenSeconds = applyChargeCommand(makeAsset(), 3, 10 / 3600);
+    expect(oneSecond.socPct - 50).toBeCloseTo((3 / 3600 / 10) * 100, 9);
+    expect(tenSeconds.socPct - 50).toBeCloseTo(10 * (oneSecond.socPct - 50), 9);
   });
 });
