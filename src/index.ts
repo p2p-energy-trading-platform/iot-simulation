@@ -4,7 +4,7 @@ import pino from 'pino';
 import { loadConfig } from './config/loadConfig.js';
 import { SimState } from './store/simState.js';
 import { generateHouses } from './domain/HouseFactory.js';
-import { Grid } from './domain/Grid.js';
+import { Grid, DEFAULT_WEATHER_SYNC_INTERVAL_MS } from './domain/Grid.js';
 import { SimulatorMqttClient } from './mqtt/mqttClient.js';
 import { TickLoop } from './scheduler/tickLoop.js';
 import type { MqttLogger } from './mqtt/mqttClient.js';
@@ -27,6 +27,22 @@ const mqttLogger: MqttLogger = {
   error: (msg: string) => { logger.error(msg); },
 };
 
+/**
+ * Reads a positive number from the environment. A missing value uses the
+ * default; a malformed one is a startup error rather than a silent NaN timer.
+ */
+function positiveNumberEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') {
+    return fallback;
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`${name} must be a positive number, got "${raw}"`);
+  }
+  return value;
+}
+
 // Track runtime task schedules to clean them up on exit
 let tickLoop: TickLoop | undefined;
 let mqttClient: SimulatorMqttClient | undefined;
@@ -47,7 +63,9 @@ async function bootstrap(): Promise<void> {
     const grids = topology.grids.map((gridConfig) => {
       const houses = generateHouses(gridConfig);
       houses.forEach((house) => { simState.addHouse(house); });
-      return new Grid(gridConfig, simState);
+      return new Grid(gridConfig, simState, {
+        weatherSyncIntervalMs: positiveNumberEnv('WEATHER_SYNC_INTERVAL_MS', DEFAULT_WEATHER_SYNC_INTERVAL_MS),
+      });
     });
 
     logger.info(
@@ -72,8 +90,8 @@ async function bootstrap(): Promise<void> {
     tickLoop = new TickLoop({
       grids,
       mqttClient,
-      tickIntervalMs: Number(process.env.TICK_INTERVAL_MS ?? '5000'),
-      heartbeatIntervalMs: Number(process.env.HEARTBEAT_INTERVAL_MS ?? '60000'),
+      tickIntervalMs: positiveNumberEnv('TICK_INTERVAL_MS', 5000),
+      heartbeatIntervalMs: positiveNumberEnv('HEARTBEAT_INTERVAL_MS', 60000),
       logger: mqttLogger,
     });
     tickLoop.start();
