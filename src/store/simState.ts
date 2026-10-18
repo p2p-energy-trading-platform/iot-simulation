@@ -1,5 +1,5 @@
 import type { FlexibleAsset } from '../domain/FlexibleAssetSimulator.js';
-import { applyChargeCommand } from '../domain/FlexibleAssetSimulator.js';
+import { stepAsset } from '../domain/FlexibleAssetSimulator.js';
 import type { DeviceClass, LoadArchetype } from '../types/config.js';
 
 export interface HouseState {
@@ -66,6 +66,21 @@ export class SimState {
   }
 
   /**
+   * Advances every asset of a house by one tick under its current setpoint and
+   * returns the updated assets.
+   */
+  advanceAssets(houseId: string, tickHours?: number): FlexibleAsset[] {
+    const house = this.houses.get(houseId);
+
+    if (!house) {
+      throw new Error(`Cannot advance assets: house "${houseId}" not found`);
+    }
+
+    house.flexibleAssets = house.flexibleAssets.map((asset) => stepAsset(asset, tickHours));
+    return house.flexibleAssets;
+  }
+
+  /**
    * Applies an incoming actuation command to the target house's asset.
    * Unknown house or asset IDs are logged and ignored, never thrown -
    * a bad command should never crash the simulator (plan section 5.4).
@@ -90,8 +105,11 @@ export class SimState {
       return;
     }
 
-    const updatedAsset = applyChargeCommand(asset, powerKw);
-    this.updateAsset(houseId, updatedAsset);
+    // The command sets the asset's power setpoint. It takes effect from the
+    // next tick and stays in force until another command replaces it, so the
+    // following meter readings show the new power_kw and a moving SoC
+    // (plan section 5.4, "Meter Convergence").
+    this.updateAsset(houseId, { ...asset, targetPowerKw: powerKw });
   }
 
   get houseCount(): number {

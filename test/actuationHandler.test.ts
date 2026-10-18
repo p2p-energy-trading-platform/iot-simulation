@@ -38,8 +38,10 @@ describe('handleActuationMessage', () => {
     });
 
     handleActuationMessage(payload, state, { warn: () => { /* no-op */ } });
+    state.advanceAssets('grid01-house0001');
 
     const house = state.getHouse('grid01-house0001');
+    expect(house?.flexibleAssets[0]?.targetPowerKw).toBe(1.0);
     expect(house?.flexibleAssets[0]?.socPct).toBeGreaterThan(50);
   });
 
@@ -54,6 +56,7 @@ describe('handleActuationMessage', () => {
     });
 
     handleActuationMessage(payload, state, { warn: () => { /* no-op */ } });
+    state.advanceAssets('grid01-house0001');
 
     const house = state.getHouse('grid01-house0001');
     expect(house?.flexibleAssets[0]?.socPct).toBeLessThan(50);

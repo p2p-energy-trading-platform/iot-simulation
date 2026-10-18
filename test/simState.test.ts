@@ -180,6 +180,7 @@ describe('SimState', () => {
     state.addHouse(makeHouse({ houseId: 'house0001' }));
 
     state.applyActuationCommand('house0001', 'bat_001', 1.0);
+    state.advanceAssets('house0001');
 
     const house = state.getHouse('house0001');
     expect(house?.flexibleAssets[0]?.socPct).toBeGreaterThan(50);
@@ -190,9 +191,50 @@ describe('SimState', () => {
     state.addHouse(makeHouse({ houseId: 'house0001' }));
 
     state.applyActuationCommand('house0001', 'bat_001', -1.0);
+    state.advanceAssets('house0001');
 
     const house = state.getHouse('house0001');
     expect(house?.flexibleAssets[0]?.socPct).toBeLessThan(50);
+  });
+
+  it('records the command as a setpoint without changing SoC until the next tick', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+    state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+    const asset = state.getHouse('house0001')?.flexibleAssets[0];
+    expect(asset?.targetPowerKw).toBe(1.0);
+    expect(asset?.socPct).toBe(50);
+  });
+
+  it('keeps applying the setpoint on every tick until it is replaced', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+    state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+    const socs: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      const [asset] = state.advanceAssets('house0001');
+      socs.push(asset.socPct);
+    }
+    expect(socs[1]).toBeGreaterThan(socs[0]);
+    expect(socs[2]).toBeGreaterThan(socs[1]);
+
+    state.applyActuationCommand('house0001', 'bat_001', 0);
+    const [idle] = state.advanceAssets('house0001');
+    expect(idle.powerKw).toBe(0);
+    expect(idle.socPct).toBe(socs[2]);
+  });
+
+  it('uses the tick length to integrate SoC', () => {
+    const state = new SimState();
+    state.addHouse(makeHouse({ houseId: 'house0001' }));
+    state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+    // 1 kW for one hour into a battery: SoC rises by 1 kWh / capacity.
+    const [asset] = state.advanceAssets('house0001', 1);
+    expect(asset.socPct).toBeCloseTo(50 + (1 / asset.capacityKwh) * 100, 5);
   });
 
   it('ignores a command for an unknown house without throwing', () => {

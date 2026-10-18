@@ -20,7 +20,7 @@ export function buildMeterReading(
     asset_id: asset.assetId,
     asset_type: asset.assetType,
     soc_pct: asset.socPct,
-    power_kw: 0, // no active dispatch command applied at this backlog stage
+    power_kw: asset.powerKw ?? 0,
     capacity_kwh: asset.capacityKwh,
   }));
 

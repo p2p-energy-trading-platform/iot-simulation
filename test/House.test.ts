@@ -28,18 +28,23 @@ describe('calculateNetKw', () => {
     expect(result).toBeCloseTo(3.5, 5);
   });
 
-  it('adds the charging asset contribution (adds demand)', () => {
+  it('subtracts the charging asset contribution (adds demand)', () => {
     // Charging: power_kw = +2 (asset consuming power)
     const result = calculateNetKw(3.0, 1.5, [2]);
-    // solar - consumption + (sum of positive values) = 3 - 1.5 + 2 = 3.5
-    expect(result).toBeCloseTo(3.5, 5);
+    // solar - consumption - charging = 3 - 1.5 - 2 = -0.5
+    expect(result).toBeCloseTo(-0.5, 5);
   });
 
   it('handles multiple assets, mixed charging and discharging', () => {
     const result = calculateNetKw(3.0, 1.5, [-1, 2, -0.5]);
-    // discharging sum = -1.5, charging sum = 2
-    // 3 - 1.5 - (-1.5) + 2 = 5
-    expect(result).toBeCloseTo(5, 5);
+    // sum(power) = 0.5, so 3 - 1.5 - 0.5 = 1
+    expect(result).toBeCloseTo(1, 5);
+  });
+
+  it('charging always lowers net and discharging always raises it', () => {
+    const base = calculateNetKw(3.0, 1.5, []);
+    expect(calculateNetKw(3.0, 1.5, [1])).toBeLessThan(base);
+    expect(calculateNetKw(3.0, 1.5, [-1])).toBeGreaterThan(base);
   });
 
   it('returns a negative net when consumption exceeds solar with no assets', () => {
