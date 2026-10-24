@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { Grid } from '../src/domain/Grid.js';
 import { SimState } from '../src/store/simState.js';
 import type { GridConfig, HouseState } from '../src/types/config.js';
+import { getDatabase } from '../src/store/database.js';
 
 function makeGridConfig(overrides: Partial<GridConfig> = {}): GridConfig {
   return {
@@ -52,6 +53,8 @@ function mockFetchSuccess(): void {
 
 describe('Grid', () => {
   beforeEach(() => {
+    const db = getDatabase(':memory:');
+    db.exec('DELETE FROM flexible_assets; DELETE FROM houses;');
     mockFetchSuccess();
   });
 
@@ -166,7 +169,6 @@ describe('Grid', () => {
     const results = await grid.runTick(12);
     const result = results[0];
 
-    // consumer house should always have zero solar regardless of irradiance
     expect(result.tick.solarKw).toBe(0);
     expect(result.weather.shortwave_radiation).toBe(700);
   });
@@ -235,7 +237,6 @@ describe('Grid', () => {
     expect(idlePower).toBe(0);
     expect(charging.house.flexibleAssets[0].powerKw).toBe(2);
     expect(charging.house.flexibleAssets[0].socPct).toBeGreaterThan(50);
-    // Charging is extra demand: net = solar - consumption - 2.
     const t = charging.tick;
     expect(t.netKw).toBeCloseTo(t.solarKw - t.consumptionKw - 2, 9);
   });
