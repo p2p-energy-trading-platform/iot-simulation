@@ -45,6 +45,7 @@ export interface HouseState {
   loadScaleFactor: number;
   ratedSolarKw: number;
   panelEfficiencyFactor: number;
+  isActive?: number;
   flexibleAssets: FlexibleAsset[];
 }
 
