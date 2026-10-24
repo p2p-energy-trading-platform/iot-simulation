@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SimState } from '../src/store/simState.js';
-import { HouseState } from '../src/domain/HouseFactory.js';
+import { HouseState } from '../src/types/config.js';
 
 function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   return {

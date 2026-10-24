@@ -1,16 +1,4 @@
-import type { GridConfig, DeviceClass, LoadArchetype } from '../types/config.js';
-import type { FlexibleAsset } from './FlexibleAssetSimulator.js';
-
-export interface HouseState {
-  houseId: string;
-  gridId: string;
-  deviceClass: DeviceClass;
-  loadArchetype: LoadArchetype;
-  loadScaleFactor: number;
-  ratedSolarKw: number;
-  panelEfficiencyFactor: number;
-  flexibleAssets: FlexibleAsset[];
-}
+import type { GridConfig, DeviceClass, LoadArchetype, HouseState, FlexibleAsset } from '../types/config.js';
 
 const RESIDENTIAL_LOAD_ARCHETYPES: LoadArchetype[] = [
   'apartment_single',

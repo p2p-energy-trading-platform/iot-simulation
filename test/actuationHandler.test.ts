@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { handleActuationMessage } from '../src/mqtt/actuationHandler.js';
 import { SimState } from '../src/store/simState.js';
-import { HouseState } from '../src/domain/HouseFactory.js';
+import { HouseState } from '../src/types/config.js';
 
 function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   return {

@@ -1,21 +1,4 @@
-import type { AssetType } from '../types/config.js';
-
-export interface FlexibleAsset {
-  assetId: string;
-  assetType: AssetType;
-  capacityKwh: number;
-  maxChargeKw: number;
-  maxDischargeKw: number;
-  socPct: number; // 0-100
-  /**
-   * Power setpoint from the last actuation command, in kW (positive = charging,
-   * negative = discharging). It stays in force on every tick until a new command
-   * replaces it, like a real inverter setpoint. Undefined means idle.
-   */
-  targetPowerKw?: number;
-  /** Power actually applied during the last tick, after limits. Undefined means 0. */
-  powerKw?: number;
-}
+import { FlexibleAsset } from "../types/config.js";
 
 export interface ChargeCommand {
   assetId: string;

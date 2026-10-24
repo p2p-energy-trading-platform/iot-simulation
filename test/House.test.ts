@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateNetKw, calculateHouseTick } from '../src/domain/House.js';
-import { HouseState } from '../src/domain/HouseFactory.js';
+import { HouseState } from '../src/types/config.js';
 
 function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   return {

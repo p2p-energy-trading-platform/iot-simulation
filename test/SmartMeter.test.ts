@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildMeterReading, buildHeartbeat, buildMeterId } from '../src/domain/SmartMeter.js';
 import type { HouseTickResult } from '../src/domain/House.js';
-import type { WeatherReading } from '../src/types/config.js';
-import { HouseState } from '../src/domain/HouseFactory.js';
+import type { HouseState, WeatherReading } from '../src/types/config.js';
 
 function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   return {

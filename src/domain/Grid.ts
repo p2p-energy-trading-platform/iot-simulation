@@ -1,8 +1,7 @@
-import type { GridConfig, WeatherReading } from '../types/config.js';
+import type { GridConfig, HouseState, WeatherReading } from '../types/config.js';
 import type { SimState } from '../store/simState.js';
 import { getWeather } from '../weather/weatherProvider.js';
 import { calculateHouseTick } from './House.js';
-import { HouseState } from './HouseFactory.js';
 
 export interface GridOptions {
   /** How long one live weather reading is reused. Default 15 minutes (plan section 3). */

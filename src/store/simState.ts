@@ -1,6 +1,6 @@
-import type { FlexibleAsset } from '../domain/FlexibleAssetSimulator.js';
 import { stepAsset } from '../domain/FlexibleAssetSimulator.js';
-import { HouseState } from '../domain/HouseFactory.js';
+import { FlexibleAsset, HouseState } from '../types/config.js';
+
 export interface SimStateLogger {
   warn: (msg: string) => void;
 }
