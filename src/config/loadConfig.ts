@@ -24,6 +24,10 @@ function validateGridConfig(grid: unknown, index: number): GridConfig {
     throw new Error(`Grid "${gridId}" is missing a valid location (lat/lon)`);
   }
 
+  if (typeof g.display_name !== 'string') {
+    throw new Error('Grid must have a display name');
+  } 
+
   if (typeof g.houses !== 'number' || g.houses < 1) {
     throw new Error(`Grid "${gridId}" must have at least 1 house`);
   }

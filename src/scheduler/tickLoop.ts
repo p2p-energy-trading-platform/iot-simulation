@@ -3,9 +3,11 @@ import type { SimulatorMqttClient } from '../mqtt/mqttClient.js';
 import { buildMeterTopic, buildHeartbeatTopic } from '../mqtt/topics.js';
 import { buildMeterReading, buildHeartbeat } from '../domain/SmartMeter.js';
 import type { MqttLogger } from '../mqtt/mqttClient.js';
+import { SimState } from '../store/simState.js';
 
 export interface TickLoopOptions {
   grids: Grid[];
+  simState: SimState;
   mqttClient: SimulatorMqttClient;
   tickIntervalMs?: number;
   heartbeatIntervalMs?: number;
@@ -25,6 +27,7 @@ const consoleLogger: MqttLogger = {
 
 export class TickLoop {
   private readonly grids: Grid[];
+  private readonly simState: SimState;
   private readonly mqttClient: SimulatorMqttClient;
   private readonly tickIntervalMs: number;
   private readonly heartbeatIntervalMs: number;
@@ -36,6 +39,7 @@ export class TickLoop {
 
   constructor(options: TickLoopOptions) {
     this.grids = options.grids;
+    this.simState = options.simState;
     this.mqttClient = options.mqttClient;
     this.tickIntervalMs = options.tickIntervalMs ?? DEFAULT_TICK_INTERVAL_MS;
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
@@ -93,8 +97,17 @@ export class TickLoop {
   private async runSingleGridTick(grid: Grid, hourOfDay: number): Promise<void> {
     const tickResults = await grid.runTick(hourOfDay, this.tickIntervalMs / 3_600_000);
 
+    const activeTickResults = tickResults.filter(({ house }) => {
+      const state = this.simState.getHouse(house.houseId);
+      return state?.isActive === 1;
+    });
+
+    if (activeTickResults.length === 0) {
+      return;
+    }
+
     const publishResults = await Promise.allSettled(
-      tickResults.map(({ house, weather, tick }) => {
+      activeTickResults.map(({ house, weather, tick }) => {
         const seq = this.nextSeq(house.houseId);
         const reading = buildMeterReading(house, tick, weather, seq);
         const topic = buildMeterTopic(house.gridId, house.houseId);
@@ -112,7 +125,7 @@ export class TickLoop {
     });
   }
 
-  /** Runs one heartbeat cycle for every grid. A failure in one house never blocks the others. */
+  /** Runs one heartbeat cycle for active houses across every grid. */
   async runAllGridHeartbeats(): Promise<void> {
     const gridResults = await Promise.allSettled(
       this.grids.map((grid) => this.runSingleGridHeartbeat(grid))
@@ -127,10 +140,17 @@ export class TickLoop {
   }
 
   private async runSingleGridHeartbeat(grid: Grid): Promise<void> {
-    const houses = grid.getHouses();
+    const activeHouses = grid.getHouses().filter((house) => {
+      const state = this.simState.getHouse(house.houseId);
+      return state?.isActive === 1;
+    });
+
+    if (activeHouses.length === 0) {
+      return;
+    }
 
     const publishResults = await Promise.allSettled(
-      houses.map((house) => {
+      activeHouses.map((house) => {
         const heartbeat = buildHeartbeat(house);
         const topic = buildHeartbeatTopic(house.gridId, house.houseId);
         return this.mqttClient.publish(topic, JSON.stringify(heartbeat), 1);
@@ -139,7 +159,7 @@ export class TickLoop {
 
     publishResults.forEach((result, index) => {
       if (result.status === 'rejected') {
-        const houseId = houses[index]?.houseId ?? 'unknown';
+        const houseId = activeHouses[index]?.houseId ?? 'unknown';
         this.logger.error(
           `Failed to publish heartbeat for house "${houseId}": ${String(result.reason)}`
         );

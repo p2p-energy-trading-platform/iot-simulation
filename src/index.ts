@@ -46,6 +46,7 @@ function positiveNumberEnv(name: string, fallback: number): number {
 // Track runtime task schedules to clean them up on exit
 let tickLoop: TickLoop | undefined;
 let mqttClient: SimulatorMqttClient | undefined;
+let dbFlushTimer: NodeJS.Timeout | undefined;
 
 async function bootstrap(): Promise<void> {
   logger.info('Initializing GridX IoT Microgrid Simulator Engine...');
@@ -60,9 +61,17 @@ async function bootstrap(): Promise<void> {
     const simState = new SimState();
 
     // Generate houses for every grid and populate the state store
+    if (simState.houseCount === 0) {
+      topology.grids.map((gridConfig) => {
+        const houses = generateHouses(gridConfig);
+        houses.forEach((house) => { simState.addHouse(house); });
+      });
+      logger.info({ houseCount: simState.houseCount }, 'Seeded fresh house into sqlite');
+    } else {
+      logger.info({ houseCount: simState.houseCount }, 'Sqlite already has seeded houses');
+    }
+
     const grids = topology.grids.map((gridConfig) => {
-      const houses = generateHouses(gridConfig);
-      houses.forEach((house) => { simState.addHouse(house); });
       return new Grid(gridConfig, simState, {
         weatherSyncIntervalMs: positiveNumberEnv('WEATHER_SYNC_INTERVAL_MS', DEFAULT_WEATHER_SYNC_INTERVAL_MS),
       });
@@ -89,12 +98,24 @@ async function bootstrap(): Promise<void> {
     // Fire Smart meter device System Heartbeats and Main Telemetry Simulation Ticks (Non-Blocking)
     tickLoop = new TickLoop({
       grids,
+      simState,
       mqttClient,
       tickIntervalMs: positiveNumberEnv('TICK_INTERVAL_MS', 5000),
       heartbeatIntervalMs: positiveNumberEnv('HEARTBEAT_INTERVAL_MS', 60000),
       logger: mqttLogger,
     });
     tickLoop.start();
+
+    // Setup periodic batch flusher for in memory dirty states
+    const flushIntervalMs = positiveNumberEnv('DB_FLUSH_INTERVAL_MS', 30_000);
+    dbFlushTimer = setInterval(() => {
+      try {
+        simState.flushDirtyStates();
+        logger.debug('Flushed dirty states to sqlite persistent store');
+      } catch (flushErr) {
+        logger.error({ flushErr }, 'Failed to flush dirty simulation states');
+      }
+    }, flushIntervalMs);
 
     logger.info('GridX Simulator engine successfully deployed onto the event loop.');
 
@@ -103,6 +124,20 @@ async function bootstrap(): Promise<void> {
       logger.warn(`\nSystem received ${signal}. Beginning process cleanup lifecycle...`);
 
       tickLoop?.stop();
+
+      if (dbFlushTimer) {
+        clearInterval(dbFlushTimer);
+        dbFlushTimer = undefined;
+      }
+      
+      // Final flush of any pending dirty state changes before exit
+      try {
+        simState.flushDirtyStates();
+        logger.info('Final state flush to SQLite completed.');
+      } catch (finalFlushErr) {
+        logger.error({ finalFlushErr }, 'Error during final state flush on shutdown');
+      }
+
       logger.info('Cleared execution timers.');
 
       void mqttClient?.disconnect().then(() => {

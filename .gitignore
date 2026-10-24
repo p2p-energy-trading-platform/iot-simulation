@@ -23,3 +23,5 @@ coverage/
 .AppleDouble
 .LSOverride
 Thumbs.db
+
+sim_state.sqlite*

@@ -1,5 +1,4 @@
-import type { GridConfig, WeatherReading } from '../types/config.js';
-import type { HouseState } from '../store/simState.js';
+import type { GridConfig, HouseState, WeatherReading } from '../types/config.js';
 import type { SimState } from '../store/simState.js';
 import { getWeather } from '../weather/weatherProvider.js';
 import { calculateHouseTick } from './House.js';
