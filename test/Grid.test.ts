@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { Grid } from '../src/domain/Grid.js';
 import { SimState } from '../src/store/simState.js';
 import type { GridConfig } from '../src/types/config.js';
-import type { HouseState } from '../src/store/simState.js';
+import { HouseState } from '../src/domain/HouseFactory.js';
 
 function makeGridConfig(overrides: Partial<GridConfig> = {}): GridConfig {
   return {

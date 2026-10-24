@@ -3,8 +3,8 @@ import { TickLoop } from '../src/scheduler/tickLoop.js';
 import { Grid } from '../src/domain/Grid.js';
 import { SimState } from '../src/store/simState.js';
 import type { GridConfig } from '../src/types/config.js';
-import type { HouseState } from '../src/store/simState.js';
 import type { SimulatorMqttClient } from '../src/mqtt/mqttClient.js';
+import { HouseState } from '../src/domain/HouseFactory.js';
 
 function makeGridConfig(overrides: Partial<GridConfig> = {}): GridConfig {
   return {

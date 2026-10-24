@@ -1,7 +1,7 @@
-import type { HouseState } from '../store/simState.js';
 import type { HouseTickResult } from './House.js';
 import type { WeatherReading } from '../types/config.js';
 import type { MeterReadingPayload, HeartbeatPayload, StorageAssetReading } from '../types/payloads.js';
+import { HouseState } from './HouseFactory.js';
 
 const SCHEMA_VERSION = '1.0';
 

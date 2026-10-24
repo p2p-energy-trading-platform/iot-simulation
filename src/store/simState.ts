@@ -1,18 +1,6 @@
 import type { FlexibleAsset } from '../domain/FlexibleAssetSimulator.js';
 import { stepAsset } from '../domain/FlexibleAssetSimulator.js';
-import type { DeviceClass, LoadArchetype } from '../types/config.js';
-
-export interface HouseState {
-  houseId: string;
-  gridId: string;
-  deviceClass: DeviceClass;
-  loadArchetype: LoadArchetype;
-  loadScaleFactor: number;
-  ratedSolarKw: number;
-  panelEfficiencyFactor: number;
-  flexibleAssets: FlexibleAsset[];
-}
-
+import { HouseState } from '../domain/HouseFactory.js';
 export interface SimStateLogger {
   warn: (msg: string) => void;
 }

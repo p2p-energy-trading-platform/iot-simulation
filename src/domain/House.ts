@@ -1,7 +1,7 @@
 import { calculateSolarOutput } from './SolarSimulator.js';
 import { calculateLoadOutput } from './LoadSimulator.js';
-import type { HouseState } from '../store/simState.js';
 import type { FlexibleAsset } from './FlexibleAssetSimulator.js';
+import { HouseState } from './HouseFactory.js';
 
 export interface HouseTickInput {
   house: HouseState;
