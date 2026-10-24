@@ -16,6 +16,7 @@ export interface GridLocation {
 
 export interface GridConfig {
   grid_id: string;
+  display_name: string;
   location: GridLocation;
   houses: number;
   prosumer_ratio: number;

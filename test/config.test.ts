@@ -23,12 +23,14 @@ describe('loadConfig', () => {
 grids:
   - grid_id: grid01
     location: { lat: 6.9271, lon: 79.8612 }
+    display_name: 'Zone 1'
     houses: 50
     prosumer_ratio: 0.4
     battery_ratio: 0.5
     commercial_count: 2
   - grid_id: grid02
     location: { lat: 9.6615, lon: 80.0255 }
+    display_name: 'Zone 2'
     houses: 30
     prosumer_ratio: 0.3
     battery_ratio: 0.4
@@ -48,6 +50,7 @@ grids:
 grids:
   - grid_id: grid01
     location: { lat: 6.9271, lon: 79.8612 }
+    display_name: 'Zone 1'
     houses: 50
     prosumer_ratio: 0.4
     battery_ratio: 0.5
@@ -123,6 +126,7 @@ grids:
 grids:
   - grid_id: grid01
     location: { lat: 6.9271, lon: 79.8612 }
+    display_name: 'Zone 1'
     houses: 0
     prosumer_ratio: 0.4
     battery_ratio: 0.5
@@ -137,6 +141,7 @@ grids:
 grids:
   - grid_id: grid01
     location: { lat: 6.9271, lon: 79.8612 }
+    display_name: 'Zone 1'
     houses: 50
     prosumer_ratio: 1.5
     battery_ratio: 0.5
@@ -151,6 +156,7 @@ grids:
 grids:
   - grid_id: grid01
     location: { lat: 6.9271, lon: 79.8612 }
+    display_name: 'Zone 1'
     houses: 50
     prosumer_ratio: 0.4
     battery_ratio: -0.1
@@ -165,6 +171,7 @@ grids:
 grids:
   - grid_id: grid01
     location: { lat: 6.9271, lon: 79.8612 }
+    display_name: 'Zone 1'
     houses: 50
     prosumer_ratio: 0.4
     battery_ratio: 0.5

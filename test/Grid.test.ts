@@ -8,6 +8,7 @@ function makeGridConfig(overrides: Partial<GridConfig> = {}): GridConfig {
   return {
     grid_id: 'grid01',
     location: { lat: 6.9271, lon: 79.8612 },
+    display_name: 'Zone 1',
     houses: 2,
     prosumer_ratio: 0.5,
     battery_ratio: 0.5,
