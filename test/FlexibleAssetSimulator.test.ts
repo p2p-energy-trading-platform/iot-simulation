@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { applyChargeCommand, stepAsset } from '../src/domain/FlexibleAssetSimulator.js';
-import type { FlexibleAsset } from '../src/domain/FlexibleAssetSimulator.js';
+import { FlexibleAsset } from '../src/types/config.js';
 
 function makeAsset(overrides: Partial<FlexibleAsset> = {}): FlexibleAsset {
   return {

@@ -2,14 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TickLoop } from '../src/scheduler/tickLoop.js';
 import { Grid } from '../src/domain/Grid.js';
 import { SimState } from '../src/store/simState.js';
-import type { GridConfig } from '../src/types/config.js';
-import type { HouseState } from '../src/store/simState.js';
+import type { GridConfig, HouseState } from '../src/types/config.js';
 import type { SimulatorMqttClient } from '../src/mqtt/mqttClient.js';
+import { getDatabase } from '../src/store/database.js';
 
 function makeGridConfig(overrides: Partial<GridConfig> = {}): GridConfig {
   return {
     grid_id: 'grid01',
     location: { lat: 6.9271, lon: 79.8612 },
+    display_name: 'Zone 1',
     houses: 2,
     prosumer_ratio: 0.5,
     battery_ratio: 0,
@@ -28,6 +29,7 @@ function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
     ratedSolarKw: 0,
     panelEfficiencyFactor: 0,
     flexibleAssets: [],
+    isActive: 1,
     ...overrides,
   };
 }
@@ -66,6 +68,8 @@ function makeFakeMqttClient(): SimulatorMqttClient & { publishCalls: { topic: st
 
 describe('TickLoop', () => {
   beforeEach(() => {
+    const db = getDatabase(':memory:');
+    db.exec('DELETE FROM flexible_assets; DELETE FROM houses;');
     mockFetchSuccess();
     vi.useFakeTimers();
   });
@@ -82,7 +86,7 @@ describe('TickLoop', () => {
 
     const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
     const mqttClient = makeFakeMqttClient();
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient });
 
     await tickLoop.runAllGridTicks();
 
@@ -100,7 +104,7 @@ describe('TickLoop', () => {
     const grid03 = new Grid(makeGridConfig({ grid_id: 'grid03' }), state);
 
     const mqttClient = makeFakeMqttClient();
-    const tickLoop = new TickLoop({ grids: [grid01, grid02, grid03], mqttClient });
+    const tickLoop = new TickLoop({ grids: [grid01, grid02, grid03], simState: state, mqttClient });
 
     await tickLoop.runAllGridTicks();
 
@@ -113,7 +117,7 @@ describe('TickLoop', () => {
 
     const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
     const mqttClient = makeFakeMqttClient();
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient });
 
     await tickLoop.runAllGridTicks();
 
@@ -139,7 +143,7 @@ describe('TickLoop', () => {
       }),
     } as unknown as SimulatorMqttClient;
 
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient });
 
     await expect(tickLoop.runAllGridTicks()).resolves.toBeUndefined();
 
@@ -170,7 +174,7 @@ describe('TickLoop', () => {
       }),
     } as unknown as SimulatorMqttClient;
 
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient });
 
     const tickPromise = tickLoop.runAllGridTicks();
     await vi.advanceTimersByTimeAsync(1000);
@@ -187,7 +191,7 @@ describe('TickLoop', () => {
 
     const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
     const mqttClient = makeFakeMqttClient();
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient });
 
     await tickLoop.runAllGridHeartbeats();
 
@@ -202,6 +206,7 @@ describe('TickLoop', () => {
 
     const tickLoop = new TickLoop({
       grids: [grid],
+      simState: state,
       mqttClient,
       tickIntervalMs: 1000,
     });
@@ -220,7 +225,7 @@ describe('TickLoop', () => {
     const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
     const mqttClient = makeFakeMqttClient();
 
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient, tickIntervalMs: 1000 });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient, tickIntervalMs: 1000 });
 
     tickLoop.start();
     tickLoop.stop();
@@ -236,7 +241,7 @@ describe('TickLoop', () => {
 
     const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
     const mqttClient = makeFakeMqttClient();
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient });
 
     await tickLoop.runAllGridTicks();
     await tickLoop.runAllGridTicks();
@@ -253,7 +258,7 @@ describe('TickLoop', () => {
     state.addHouse(makeHouse({ houseId: 'house0001', gridId: 'grid01' }));
     const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
     const mqttClient = makeFakeMqttClient();
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient, heartbeatIntervalMs: 60_000, tickIntervalMs: 5_000 });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient, heartbeatIntervalMs: 60_000, tickIntervalMs: 5_000 });
 
     tickLoop.start();
     await vi.advanceTimersByTimeAsync(0);
@@ -269,6 +274,7 @@ describe('TickLoop', () => {
       makeHouse({
         houseId: 'house0001',
         gridId: 'grid01',
+        isActive: 1,
         flexibleAssets: [
           { assetId: 'bat_001', assetType: 'bess', capacityKwh: 10, maxChargeKw: 3.5, maxDischargeKw: 3.5, socPct: 50 },
         ],
@@ -277,7 +283,7 @@ describe('TickLoop', () => {
     state.applyActuationCommand('house0001', 'bat_001', -1.5);
     const grid = new Grid(makeGridConfig({ grid_id: 'grid01' }), state);
     const mqttClient = makeFakeMqttClient();
-    const tickLoop = new TickLoop({ grids: [grid], mqttClient });
+    const tickLoop = new TickLoop({ grids: [grid], simState: state, mqttClient });
 
     await tickLoop.runAllGridTicks();
 

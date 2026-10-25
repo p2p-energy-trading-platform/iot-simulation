@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SimState } from '../src/store/simState.js';
-import type { HouseState } from '../src/store/simState.js';
+import { HouseState } from '../src/types/config.js';
+import { getDatabase } from '../src/store/database.js';
 
 function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   return {
@@ -29,6 +30,9 @@ describe('SimState', () => {
   let state: SimState;
 
   beforeEach(() => {
+    // Clear SQLite tables between tests to ensure isolation
+    const db = getDatabase(':memory:');
+    db.exec('DELETE FROM flexible_assets; DELETE FROM houses;');
     state = new SimState();
   });
 
@@ -58,11 +62,9 @@ describe('SimState', () => {
 
   it('throws when adding a house with a duplicate ID', () => {
     state.addHouse(makeHouse({ houseId: 'house0001' }));
-
-   beforeEach(() => {
-        state = new SimState();
-    });
-
+    expect(() => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+    }).toThrow();
   });
 
   it('returns undefined for a house that does not exist', () => {
@@ -118,7 +120,6 @@ describe('SimState', () => {
   it('asset state persists correctly across multiple simulated ticks', () => {
     state.addHouse(makeHouse({ houseId: 'house0001' }));
 
-    // Simulate 5 ticks, each nudging SoC up by 5%
     for (let tick = 1; tick <= 5; tick++) {
       const house = state.getHouse('house0001');
       const asset = house?.flexibleAssets[0];
@@ -131,7 +132,7 @@ describe('SimState', () => {
     }
 
     const finalHouse = state.getHouse('house0001');
-    expect(finalHouse?.flexibleAssets[0]?.socPct).toBe(75); // 50 + 5*5
+    expect(finalHouse?.flexibleAssets[0]?.socPct).toBe(75);
   });
 
   it('throws when updating an asset on a house that does not exist', () => {
@@ -170,127 +171,114 @@ describe('SimState', () => {
     state.updateAsset('house0001', { ...asset1, socPct: 90 });
 
     expect(state.getHouse('house0001')?.flexibleAssets[0]?.socPct).toBe(90);
-    expect(state.getHouse('house0002')?.flexibleAssets[0]?.socPct).toBe(50); // unchanged
+    expect(state.getHouse('house0002')?.flexibleAssets[0]?.socPct).toBe(50);
   });
-
 
   describe('applyActuationCommand', () => {
-  it('updates the target asset SoC when charging', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
+    it('updates the target asset SoC when charging', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
 
-    state.applyActuationCommand('house0001', 'bat_001', 1.0);
-    state.advanceAssets('house0001');
+      state.applyActuationCommand('house0001', 'bat_001', 1.0);
+      state.advanceAssets('house0001');
 
-    const house = state.getHouse('house0001');
-    expect(house?.flexibleAssets[0]?.socPct).toBeGreaterThan(50);
-  });
-
-  it('updates the target asset SoC when discharging', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
-
-    state.applyActuationCommand('house0001', 'bat_001', -1.0);
-    state.advanceAssets('house0001');
-
-    const house = state.getHouse('house0001');
-    expect(house?.flexibleAssets[0]?.socPct).toBeLessThan(50);
-  });
-
-  it('records the command as a setpoint without changing SoC until the next tick', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
-
-    state.applyActuationCommand('house0001', 'bat_001', 1.0);
-
-    const asset = state.getHouse('house0001')?.flexibleAssets[0];
-    expect(asset?.targetPowerKw).toBe(1.0);
-    expect(asset?.socPct).toBe(50);
-  });
-
-  it('keeps applying the setpoint on every tick until it is replaced', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
-    state.applyActuationCommand('house0001', 'bat_001', 1.0);
-
-    const socs: number[] = [];
-    for (let i = 0; i < 3; i++) {
-      const [asset] = state.advanceAssets('house0001');
-      socs.push(asset.socPct);
-    }
-    expect(socs[1]).toBeGreaterThan(socs[0]);
-    expect(socs[2]).toBeGreaterThan(socs[1]);
-
-    state.applyActuationCommand('house0001', 'bat_001', 0);
-    const [idle] = state.advanceAssets('house0001');
-    expect(idle.powerKw).toBe(0);
-    expect(idle.socPct).toBe(socs[2]);
-  });
-
-  it('uses the tick length to integrate SoC', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
-    state.applyActuationCommand('house0001', 'bat_001', 1.0);
-
-    // 1 kW for one hour into a battery: SoC rises by 1 kWh / capacity.
-    const [asset] = state.advanceAssets('house0001', 1);
-    expect(asset.socPct).toBeCloseTo(50 + (1 / asset.capacityKwh) * 100, 5);
-  });
-
-  it('ignores a command for an unknown house without throwing', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
-
-    expect(() => {
-      state.applyActuationCommand('nonexistent_house', 'bat_001', 1.0);
-    }).not.toThrow();
-  });
-
-  it('logs a warning for a command targeting an unknown house', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
-
-    const warnings: string[] = [];
-    state.applyActuationCommand('nonexistent_house', 'bat_001', 1.0, {
-      warn: (msg) => warnings.push(msg),
+      const house = state.getHouse('house0001');
+      expect(house?.flexibleAssets[0]?.socPct).toBeGreaterThan(50);
     });
 
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('unknown house');
-  });
+    it('updates the target asset SoC when discharging', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
 
-  it('ignores a command for an unknown asset without throwing', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
+      state.applyActuationCommand('house0001', 'bat_001', -1.0);
+      state.advanceAssets('house0001');
 
-    expect(() => {
-      state.applyActuationCommand('house0001', 'nonexistent_asset', 1.0);
-    }).not.toThrow();
-  });
-
-  it('logs a warning for a command targeting an unknown asset', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
-
-    const warnings: string[] = [];
-    state.applyActuationCommand('house0001', 'nonexistent_asset', 1.0, {
-      warn: (msg) => warnings.push(msg),
+      const house = state.getHouse('house0001');
+      expect(house?.flexibleAssets[0]?.socPct).toBeLessThan(50);
     });
 
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('unknown asset');
+    it('records the command as a setpoint without changing SoC until the next tick', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+      state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+      const asset = state.getHouse('house0001')?.flexibleAssets[0];
+      expect(asset?.targetPowerKw).toBe(1.0);
+      expect(asset?.socPct).toBe(50);
+    });
+
+    it('keeps applying the setpoint on every tick until it is replaced', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+      state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+      const socs: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        const [asset] = state.advanceAssets('house0001');
+        socs.push(asset.socPct);
+      }
+      expect(socs[1]).toBeGreaterThan(socs[0]);
+      expect(socs[2]).toBeGreaterThan(socs[1]);
+
+      state.applyActuationCommand('house0001', 'bat_001', 0);
+      const [idle] = state.advanceAssets('house0001');
+      expect(idle.powerKw).toBe(0);
+      expect(idle.socPct).toBe(socs[2]);
+    });
+
+    it('uses the tick length to integrate SoC', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+      state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+      const [asset] = state.advanceAssets('house0001', 1);
+      expect(asset.socPct).toBeCloseTo(50 + (1 / asset.capacityKwh) * 100, 5);
+    });
+
+    it('ignores a command for an unknown house without throwing', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+      expect(() => {
+        state.applyActuationCommand('nonexistent_house', 'bat_001', 1.0);
+      }).not.toThrow();
+    });
+
+    it('logs a warning for a command targeting an unknown house', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+      const warnings: string[] = [];
+      state.applyActuationCommand('nonexistent_house', 'bat_001', 1.0, {
+        warn: (msg) => warnings.push(msg),
+      });
+
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('unknown house');
+    });
+
+    it('ignores a command for an unknown asset without throwing', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+      expect(() => {
+        state.applyActuationCommand('house0001', 'nonexistent_asset', 1.0);
+      }).not.toThrow();
+    });
+
+    it('logs a warning for a command targeting an unknown asset', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+
+      const warnings: string[] = [];
+      state.applyActuationCommand('house0001', 'nonexistent_asset', 1.0, {
+        warn: (msg) => warnings.push(msg),
+      });
+
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('unknown asset');
+    });
+
+    it('does not affect other assets or houses when applying a command', () => {
+      state.addHouse(makeHouse({ houseId: 'house0001' }));
+      state.addHouse(makeHouse({ houseId: 'house0002' }));
+
+      state.applyActuationCommand('house0001', 'bat_001', 1.0);
+
+      const house2 = state.getHouse('house0002');
+      expect(house2?.flexibleAssets[0]?.socPct).toBe(50);
+    });
   });
-
-  it('does not affect other assets or houses when applying a command', () => {
-    const state = new SimState();
-    state.addHouse(makeHouse({ houseId: 'house0001' }));
-    state.addHouse(makeHouse({ houseId: 'house0002' }));
-
-    state.applyActuationCommand('house0001', 'bat_001', 1.0);
-
-    const house2 = state.getHouse('house0002');
-    expect(house2?.flexibleAssets[0]?.socPct).toBe(50); // unchanged
-  });
-});
-
 });

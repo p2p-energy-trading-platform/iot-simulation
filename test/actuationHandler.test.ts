@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { handleActuationMessage } from '../src/mqtt/actuationHandler.js';
 import { SimState } from '../src/store/simState.js';
-import type { HouseState } from '../src/store/simState.js';
+import { HouseState } from '../src/types/config.js';
+import { getDatabase } from '../src/store/database.js';
 
 function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   return {
@@ -27,6 +28,11 @@ function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
 }
 
 describe('handleActuationMessage', () => {
+  beforeEach(() => {
+    const db = getDatabase(':memory:');
+    db.exec('DELETE FROM flexible_assets; DELETE FROM houses;');
+  });
+
   it('correctly updates SoC from a valid charge command', () => {
     const state = new SimState();
     state.addHouse(makeHouse());
