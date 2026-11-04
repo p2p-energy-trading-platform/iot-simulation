@@ -75,3 +75,7 @@ export function calculateNetKw(
   const storageKw = activeAssetPowerKw.reduce((sum, p) => sum + p, 0);
   return solarKw - consumptionKw - storageKw;
 }
+
+export function extractHouseId(meterId: string): string {
+  return meterId.replace(/^meter-/, '');
+}

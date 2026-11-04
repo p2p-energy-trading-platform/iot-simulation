@@ -6,9 +6,13 @@ import { FlexibleAssetRow, HouseStateRow } from '../types/db.js';
 
 export interface SimStateLogger {
   warn: (msg: string) => void;
+  error: (msg: string) => void;
 }
 
-const silentLogger: SimStateLogger = { warn: () => { /* no-op */ } };
+const silentLogger: SimStateLogger = {
+  warn: () => { /* no-op */ },
+  error: () => { /* no-op */ }
+};
 
 export class SimState {
   private readonly db: Database;
@@ -150,6 +154,27 @@ export class SimState {
     house.flexibleAssets = house.flexibleAssets.map((asset) => stepAsset(asset, tickHours));
     this.dirtyHouses.add(houseId);
     return house.flexibleAssets;
+  }
+
+  applyRegistrationActuationCommand(
+    houseId: string,
+    logger: SimStateLogger = silentLogger
+  ): boolean {
+    const house = this.getHouse(houseId);
+
+    if (!house) {
+      logger.warn('House does not exist');
+      return false;
+    }
+
+    try {
+      this.activateHouse(houseId);
+      return true;
+    } catch {
+      logger.warn(`Could not activate house with ${houseId}`);
+    }
+
+    return false;
   }
 
   /**

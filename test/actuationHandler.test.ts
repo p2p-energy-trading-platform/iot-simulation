@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { handleActuationMessage } from '../src/mqtt/actuationHandler.js';
+import { SimulatorMqttClient } from '../src/mqtt/mqttClient.js';
 import { SimState } from '../src/store/simState.js';
 import { HouseState } from '../src/types/config.js';
 import { getDatabase } from '../src/store/database.js';
+
+const mqttClient = new SimulatorMqttClient({ host: 'localhost', port: 1883 });
 
 function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   return {
@@ -27,6 +30,16 @@ function makeHouse(overrides: Partial<HouseState> = {}): HouseState {
   };
 }
 
+function makeLogger(warnings: string[]): {
+  warn: (msg: string) => void;
+  error: () => void;
+} {
+  return {
+    warn: (msg: string): void => { warnings.push(msg) },
+    error: (): void => { /* no-op */ },
+  };
+}
+
 describe('handleActuationMessage', () => {
   beforeEach(() => {
     const db = getDatabase(':memory:');
@@ -43,7 +56,7 @@ describe('handleActuationMessage', () => {
       power_kw: 1.0,
     });
 
-    handleActuationMessage(payload, state, { warn: () => { /* no-op */ } });
+    void handleActuationMessage(payload, state, mqttClient, makeLogger([]));
     state.advanceAssets('grid01-house0001');
 
     const house = state.getHouse('grid01-house0001');
@@ -61,7 +74,7 @@ describe('handleActuationMessage', () => {
       power_kw: -1.0,
     });
 
-    handleActuationMessage(payload, state, { warn: () => { /* no-op */ } });
+    void handleActuationMessage(payload, state, mqttClient, makeLogger([]));
     state.advanceAssets('grid01-house0001');
 
     const house = state.getHouse('grid01-house0001');
@@ -75,9 +88,7 @@ describe('handleActuationMessage', () => {
     const warnings: string[] = [];
 
     expect(() => {
-      handleActuationMessage('not valid json {{{', state, {
-        warn: (msg: string) => warnings.push(msg),
-      });
+      void handleActuationMessage('not valid json {{{', state, mqttClient, makeLogger(warnings));
     }).not.toThrow();
 
     expect(warnings.some((w) => w.includes('malformed'))).toBe(true);
@@ -89,9 +100,7 @@ describe('handleActuationMessage', () => {
 
     const warnings: string[] = [];
 
-    handleActuationMessage(JSON.stringify({ foo: 'bar' }), state, {
-      warn: (msg: string) => warnings.push(msg),
-    });
+    void handleActuationMessage(JSON.stringify({ foo: 'bar' }), state, mqttClient, makeLogger(warnings));
 
     expect(warnings.some((w) => w.includes('unexpected shape'))).toBe(true);
   });
@@ -107,7 +116,7 @@ describe('handleActuationMessage', () => {
     });
 
     expect(() => {
-      handleActuationMessage(payload, state, { warn: () => { /* no-op */ } });
+      void handleActuationMessage(payload, state, mqttClient, makeLogger([]));
     }).not.toThrow();
   });
 
@@ -122,7 +131,7 @@ describe('handleActuationMessage', () => {
     });
 
     expect(() => {
-      handleActuationMessage(payload, state, { warn: () => { /* no-op */ } });
+      void handleActuationMessage(payload, state, mqttClient, makeLogger([]));
     }).not.toThrow();
   });
 
@@ -132,10 +141,11 @@ describe('handleActuationMessage', () => {
 
     const warnings: string[] = [];
 
-    handleActuationMessage(
+    void handleActuationMessage(
       JSON.stringify({ house_id: 'grid01-house0001', asset_id: 'bat_001', power_kw: 'a lot' }),
       state,
-      { warn: (msg: string) => warnings.push(msg) }
+      mqttClient,
+      makeLogger(warnings)
     );
 
     expect(warnings.some((w) => w.includes('unexpected shape'))).toBe(true);
