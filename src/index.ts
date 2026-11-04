@@ -45,7 +45,6 @@ function positiveNumberEnv(name: string, fallback: number): number {
 
 // Track runtime task schedules to clean them up on exit
 let tickLoop: TickLoop | undefined;
-let mqttClient: SimulatorMqttClient | undefined;
 let dbFlushTimer: NodeJS.Timeout | undefined;
 
 async function bootstrap(): Promise<void> {
@@ -86,12 +85,12 @@ async function bootstrap(): Promise<void> {
     const host = process.env.MQTT_HOST ?? 'localhost';
     const port = Number(process.env.MQTT_PORT ?? '1883');
 
-    mqttClient = new SimulatorMqttClient({ host, port }, mqttLogger);
+    const mqttClient = new SimulatorMqttClient({ host, port }, mqttLogger);
     await mqttClient.connect();
     logger.info({ host, port }, 'Connected to MQTT broker');
 
     await mqttClient.subscribe(ACTUATION_COMMAND_TOPIC, (_topic, payload) => {
-      handleActuationMessage(payload, simState, mqttLogger);
+      void handleActuationMessage(payload, simState, mqttClient, mqttLogger);
     });
     logger.info({ topic: ACTUATION_COMMAND_TOPIC }, 'Subscribed to actuation command topic');
 
@@ -140,7 +139,7 @@ async function bootstrap(): Promise<void> {
 
       logger.info('Cleared execution timers.');
 
-      void mqttClient?.disconnect().then(() => {
+      void mqttClient.disconnect().then(() => {
         logger.info('GridX Simulator application cleanly terminated.');
         process.exit(0);
       });
