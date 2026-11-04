@@ -49,8 +49,34 @@ export interface HeartbeatPayload {
   flexible_assets: FlexibleAssetCapability[];
 }
 
-export interface ActuationCommandPayload {
+export interface BaseActuationCommandPayload {
+  action: string;
+  meter_id?: string|undefined;
+  house_id?: string|undefined;
+  asset_id?: string|undefined;
+  timestamp: string;
+  metadata?: string|undefined;
+}
+
+export interface ActuationCommandPayload extends BaseActuationCommandPayload {
   house_id: string;
   asset_id: string;
+  timestamp: string;
   power_kw: number;
+}
+
+export interface RegistrationActuationPayload extends BaseActuationCommandPayload {
+  meter_id: string;
+}
+
+export interface RegistrationActuationResponsePayload {
+  event_type: string;
+  timestamp: string;
+  data: {
+    house_id: string;
+    meter_id: string;
+    grid_id: string;
+    device_class: DeviceClass;
+    rated_solar_kw: number;
+  };
 }
